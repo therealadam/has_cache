@@ -42,26 +42,64 @@ end
 class Author < ActiveRecord::Base
   has_many :posts
   
+  # Sugar this
+  attr_accessor :post_count, :private_post_count, :histogram, :cloud
+  
+  # Sugar this
+  def self.get(id, includes={})
+    record = CACHE.fetch(['author', id].join(':')) do
+      find(id)
+    end
+    
+    if includes.has_key?(:include)
+      mappings = includes[:include].inject({}) do |hsh, attr|
+        hsh.update(record.send("#{attr}_key") => attr)
+      end
+      CACHE.read_multi(mappings.keys).each do |key, value|
+        record.send("#{mappings[key]}=", value)
+      end
+    end
+    
+    record
+  end
+  
+  def post_count_key
+    ['author', self.id, 'posts'].join(':')
+  end
+  
+  def private_post_count_key
+    ['author', self.id, 'private'].join(':')
+  end
+  
+  def histogram_key
+    ['author', self.id, 'histogram'].join(':')
+  end
+  
+  def cloud_key
+    ['author', self.id, 'cloud'].join(':')
+  end
+  
+  # Sugar this?
   def post_count
-    @post_count ||= CACHE.fetch(['author', self.id, 'posts'].join(':')) do
+    @post_count ||= CACHE.fetch(post_count_key) do
       posts.count
     end
   end
   
   def private_post_count
-    @private_post_count ||= CACHE.fetch(['author', self.id, 'private'].join(':')) do
+    @private_post_count ||= CACHE.fetch(private_post_count_key) do
       posts.where(:private => true).count
     end
   end
   
   def histogram(histogram=nil)
-    @histogram ||= CACHE.fetch(['author', self.id, 'histogram'].join(':')) do
+    @histogram ||= CACHE.fetch(histogram_key) do
       histogram
     end
   end
   
   def cloud(cloud=nil)
-    @cloud ||= CACHE.fetch(['author', self.id, 'cloud'].join(':')) do
+    @cloud ||= CACHE.fetch(cloud_key) do
       cloud
     end
   end
