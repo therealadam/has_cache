@@ -12,6 +12,8 @@ config = {
   :database => 'cms'
 }
 
+CACHE = ActiveSupport::Cache::MemCacheStore.new('localhost')
+
 ActiveRecord::Base.establish_connection(config)
 
 ActiveRecord::Schema.define do
@@ -39,4 +41,29 @@ end
 
 class Author < ActiveRecord::Base
   has_many :posts
+  
+  def post_count
+    @post_count ||= CACHE.fetch(['author', self.id, 'posts'].join(':')) do
+      posts.count
+    end
+  end
+  
+  def private_post_count
+    @private_post_count ||= CACHE.fetch(['author', self.id, 'private'].join(':')) do
+      posts.where(:private => true).count
+    end
+  end
+  
+  def histogram(histogram=nil)
+    @histogram ||= CACHE.fetch(['author', self.id, 'histogram'].join(':')) do
+      histogram
+    end
+  end
+  
+  def cloud(cloud=nil)
+    @cloud ||= CACHE.fetch(['author', self.id, 'cloud'].join(':')) do
+      cloud
+    end
+  end
+  
 end
