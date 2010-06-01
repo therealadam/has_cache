@@ -35,38 +35,47 @@ ActiveRecord::Schema.define do
   
 end unless ActiveRecord::Base.connection.table_exists?('posts')
 
+module HasCache
+  extend ActiveSupport::Concern
+  
+  included do
+    
+    cattr_accessor :cache_lookups, :cache_keys do
+      {}
+    end
+    
+    def self.has_cache(name, options, &block)
+      cache_lookups[name] = block
+      cache_keys[name] = options[:key]
+      
+      class_eval %Q{
+        def #{name}(*args)
+          return @#{name} if @#{name}.present?
+          key = method(cache_keys[:#{name}]).call
+          @#{name} = CACHE.fetch(key) do
+            lookup = cache_lookups[:#{name}]
+            if lookup.arity > 1 && args.length > 0
+              lookup.call(self, *args)
+            else
+              lookup.call(self)
+            end
+          end
+        end
+      }
+    end
+    
+  end
+  
+end
+
 class Post < ActiveRecord::Base
   belongs_to :author
 end
 
 class Author < ActiveRecord::Base
+  include HasCache
+  
   has_many :posts
-  
-  cattr_accessor :cache_lookups
-  @@cache_lookups = {}
-  
-  cattr_accessor :cache_keys
-  @@cache_keys = {}
-  
-  def self.has_cache(name, options, &block)
-    cache_lookups[name] = block
-    cache_keys[name] = options[:key]
-    
-    class_eval %Q{
-      def #{name}(*args)
-        return @#{name} if @#{name}.present?
-        key = method(cache_keys[:#{name}]).call
-        @#{name} = CACHE.fetch(key) do
-          lookup = cache_lookups[:#{name}]
-          if lookup.arity > 1 && args.length > 0
-            lookup.call(self, *args)
-          else
-            lookup.call(self)
-          end
-        end
-      end
-    }
-  end
   
   # AKK: sugar this up, get the block to evaluate with the object instance
   has_cache :post_count, :key => :post_count_key do |author|
