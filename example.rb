@@ -74,7 +74,7 @@ module HasCache
           hsh.update(record.send("#{attr}_key") => attr)
         end
         CACHE.read_multi(mappings.keys).each do |key, value|
-          record.send("#{mappings[key]}=", value)
+          record.instance_variable_set("@#{mappings[key]}", value)
         end
       end
       

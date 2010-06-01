@@ -20,6 +20,6 @@ puts Benchmark.measure {
   end
 }
 
-# puts Benchmark.measure {
-#   author_ids.map { |id| Author.get(id, :include => [:post_count, :private_post_count, :histogram, :cloud]) }
-# }
+puts Benchmark.measure {
+  author_ids.map { |id| Author.get(id, :include => [:post_count, :private_post_count, :histogram, :cloud]) }
+}
