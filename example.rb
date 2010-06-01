@@ -64,6 +64,23 @@ module HasCache
       }
     end
     
+    def self.get(id, includes={})
+      record = CACHE.fetch(['author', id].join(':')) do
+        find(id)
+      end
+      
+      if includes.has_key?(:include)
+        mappings = includes[:include].inject({}) do |hsh, attr|
+          hsh.update(record.send("#{attr}_key") => attr)
+        end
+        CACHE.read_multi(mappings.keys).each do |key, value|
+          record.send("#{mappings[key]}=", value)
+        end
+      end
+      
+      record
+    end
+    
   end
   
 end
@@ -95,23 +112,6 @@ class Author < ActiveRecord::Base
   end
   
   # Sugar this
-  def self.get(id, includes={})
-    record = CACHE.fetch(['author', id].join(':')) do
-      find(id)
-    end
-    
-    if includes.has_key?(:include)
-      mappings = includes[:include].inject({}) do |hsh, attr|
-        hsh.update(record.send("#{attr}_key") => attr)
-      end
-      CACHE.read_multi(mappings.keys).each do |key, value|
-        record.send("#{mappings[key]}=", value)
-      end
-    end
-    
-    record
-  end
-  
   def post_count_key
     ['author', self.id, 'posts'].join(':')
   end
