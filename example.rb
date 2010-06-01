@@ -42,8 +42,48 @@ end
 class Author < ActiveRecord::Base
   has_many :posts
   
-  # Sugar this
-  attr_accessor :post_count, :private_post_count, :histogram, :cloud
+  cattr_accessor :cache_lookups
+  @@cache_lookups = {}
+  
+  cattr_accessor :cache_keys
+  @@cache_keys = {}
+  
+  def self.has_cache(name, options, &block)
+    cache_lookups[name] = block
+    cache_keys[name] = options[:key]
+    
+    class_eval %Q{
+      def #{name}(*args)
+        return @#{name} if @#{name}.present?
+        key = method(cache_keys[:#{name}]).call
+        @#{name} = CACHE.fetch(key) do
+          lookup = cache_lookups[:#{name}]
+          if lookup.arity > 1 && args.length > 0
+            lookup.call(self, *args)
+          else
+            lookup.call(self)
+          end
+        end
+      end
+    }
+  end
+  
+  # AKK: sugar this up, get the block to evaluate with the object instance
+  has_cache :post_count, :key => :post_count_key do |author|
+    author.posts.count
+  end
+  
+  has_cache :private_post_count, :key => :private_post_count_key do |author|
+    author.posts.where(:private => true).count
+  end
+  
+  has_cache :histogram, :key => :histogram_key do |_, histogram|
+    histogram
+  end
+  
+  has_cache :cloud, :key => :cloud_key do |_, cloud|
+    cloud
+  end
   
   # Sugar this
   def self.get(id, includes={})
@@ -77,31 +117,6 @@ class Author < ActiveRecord::Base
   
   def cloud_key
     ['author', self.id, 'cloud'].join(':')
-  end
-  
-  # Sugar this?
-  def post_count
-    @post_count ||= CACHE.fetch(post_count_key) do
-      posts.count
-    end
-  end
-  
-  def private_post_count
-    @private_post_count ||= CACHE.fetch(private_post_count_key) do
-      posts.where(:private => true).count
-    end
-  end
-  
-  def histogram(histogram=nil)
-    @histogram ||= CACHE.fetch(histogram_key) do
-      histogram
-    end
-  end
-  
-  def cloud(cloud=nil)
-    @cloud ||= CACHE.fetch(cloud_key) do
-      cloud
-    end
   end
   
 end
